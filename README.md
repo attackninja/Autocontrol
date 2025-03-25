@@ -1,4 +1,5 @@
 # Autocontrol
+![App Icon](https://github.com/attackninja/Autocontrol/blob/v4.0.0/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png)
 Description:
 An Android-based automated touch tool that controls touch event playback via a floating window. It supports reading touch scripts from external storage or assets files to perform automated clicks. Core features include directory selection, real-time status display, and integration with accessibility services, suitable for automated testing or repetitive tasks. No need for root.
 
