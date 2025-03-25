@@ -1,0 +1,123 @@
+Hur man spelar in:
+1. Anslut telefonen till datorn via USB, gå till Inställningar -> Aktivera Utvecklaralternativ -> Aktivera USB-felsökning och ladda ner Python.
+2. Öppna CMD på datorn.
+3. E:\>adb devices
+4. E:\>adb shell getevent -lt > E:\touches.txt, starta inspelning av operationer (måste spela in minst en svepning, annars kan filen inte konverteras; en enskild svepning får inte överstiga 10 sekunder, annars kan operationen inte spelas upp korrekt), spara inspelningen till touches.txt.
+5. Placera convert_vertical.py på E:-enheten.
+6. Ställ in in- och utdatafilnamn i convert_vertical.py, med utdatafilen namngiven A1.txt (för upprepade inspelningar, namnge dem A2, A3, A4, osv.).
+7. E:\>python convert_vertical.py
+8. Placera utdatafilen i underkatalogen under telefonens autocontroltouch-mapp (skapa en ny mapp).
+9. Namnge underkatalogen.
+10. Skapa en huvudfil A.txt.
+11. Öppna A.txt-filen, ange följande innehåll (lista utdatafilnamnen i ordning) och spara:
+    files:
+    A1.txt
+    A2.txt
+    A3.txt
+    …
+-----------------------------------------
+
+Hur man spelar upp:
+1. Öppna appen.
+2. Aktivera behörighet för flytande fönster; aktivera tillgänglighetsbehörighet.
+3. Klicka på "Select"-knappen och ge lästillstånd, välj sedan uppspelningsmappen.
+4. Klicka på "Start"-knappen.
+----------------------------------------
+
+Förslag ändring:
+Byt standardupplösningen (standard 2400x1080) i convert_vertical.py med den faktiska upplösningen.
+----------------------------------------
+
+autocontrol14 Nuvarande funktionalitetssammanfattning:
+1. Funktioner för flytande fönstergränssnitt
+   • Visa flytande fönster:
+      o Visa ett flyttbart flytande fönster på skärmen, kräver att användaren ger tillstånd för "Visa över andra appar".
+      o Flytande fönsterposition: Övre vänstra hörnet av skärmen (justerbart via WindowManager.LayoutParams).
+   • Kontrollknappar:
+      o Startknapp (start_button): Utlöser uppspelning, stöder angivna kataloger eller standard assets-filer.
+      o Stoppknapp (stop_button): Stoppar pågående uppspelning.
+      o Välj katalogknapp (select_button): Startar FilePickerActivity för att låta användaren välja en katalog för uppspelningsfiler.
+   • Statusvisning (status_text):
+      o Realtidsvisning av uppspelningsstatus, t.ex.:
+          Vald katalog: autocontroltouch
+          Utför: autoclick1.txt
+          Uppspelning slutförd
+          Fel: Underfil hittades inte, osv.
+   • Fillistvisning (file_list_text):
+      o Visar namnet på den aktuellt valda katalogen (t.ex. autocontroltouch).
+   • Timerfönster (timer_text):
+      o Visar ett oberoende timerfönster i övre högra hörnet, cyklar från 1s till 10s.
+2. Funktioner för filuppspelning (TouchRecordService)
+   • Stöder två uppspelningskällor:
+      o Uppspelning från assets-filer:
+          Standardfil: touch_recording_3.txt.
+          Användare kan ange andra assets-filer via Intent.
+      o Uppspelning från extern lagringskatalog:
+          Stöder användarvalda kataloger (t.ex. /storage/emulated/0/autocontroltouch/autoclick_slow/).
+   • Huvudfilstolkning:
+      o Läser den första filen i katalogen som huvudfil (prioritet ej explicit angiven, standard är den första).
+      o Tolkar huvudfilens innehåll och identifierar underfillistan efter "files:" markören.
+   • Underfilsuppspelning:
+      o Läser och utför underfiler listade i huvudfilen i ordning (t.ex. autoclick1.txt).
+      o Stöder format för pekskärmshändelser: action:pointerId:x:y:time (t.ex. DOWN:0:100.0:200.0:1.0).
+   • Utförande av pekskärmshändelser:
+      o Skickar tolkade pekskärmshändelser (t.ex. DOWN, MOVE, UP) till MyAccessibilityService för automatiserade klick.
+      o Beräknar uppspelningstid baserat på händelsetidsstämplar och utför med fördröjningar.
+   • Uppspelningskontroll:
+      o Starta uppspelning: Utlöses via Intent, stöder katalog-URI eller assets-filnamn.
+      o Stoppa uppspelning: Avbryter aktuell koroutinuppgift och stoppar utförandet av pekskärmshändelser.
+3. Statushantering och kommunikation
+   • Statussändning:
+      o Använder LocalBroadcastManager för kommunikation mellan TouchRecordService och FloatingWindow.
+      o Sändningsåtgärd: com.example.autocontrol14.STATUS_UPDATE.
+      o Exempel på skickade statusar:
+          Utför: $fileName (vid underfilsuppspelning)
+          Uppspelning slutförd (när uppspelningen avslutas)
+          Fel: $message (vid ett undantag)
+   • Realtidsstatusuppdateringar:
+      o FloatingWindow tar emot sändningar och uppdaterar statusText på huvudtråden, säkerställer UI-responsivitet.
+4. Tjänstehantering
+   • Tjänstelivscykel:
+      o Både FloatingWindow och TouchRecordService är START_STICKY-tjänster, startar om automatiskt efter en krasch.
+   • Behörighetskontroller:
+      o Kontrollerar och begär tillstånd för flytande fönster (Settings.canDrawOverlays).
+   • Resursrensning:
+      o Tar bort flytande fönstervyer, avbryter timertasks och avregistrerar sändningsmottagare när tjänsten förstörs.
+5. Loggning och felsökning
+   • Detaljerad loggutdata:
+      o Loggar nyckelsteg som tjänstestart, filanalys, sändningsskick/mottagning och uppspelningsframsteg.
+      o Exempel på loggar:
+          TouchRecordService: Sending status update: Utför: autoclick1.txt
+          FloatingWindow: Local broadcast received with status: Utför: autoclick1.txt
+
+Funktionslista
+Nedan är en lista som sammanfattar specifika funktioner:
+1. Visning och kontroll av flytande fönster:
+   o Visar flytande fönster och timerfönster.
+   o Tillhandahåller "Start", "Stopp" och "Välj katalog"-knappar.
+   o Visar aktuell katalog och uppspelningsstatus.
+2. Filuppspelning:
+   o Läser pekskärmshändelsefiler från assets eller externa lagringskataloger.
+   o Tolkar huvudfilen och spelar upp underfiler i ordning.
+   o Utför pekskärmshändelser (via tillgänglighetstjänst).
+3. Statuskommunikation:
+   o Använder LocalBroadcastManager för att skicka och ta emot statusuppdateringar.
+   o Uppdaterar flytande fönsterstatus-text i realtid.
+4. Tjänstehantering:
+   o Stöder kontinuerlig tjänstkörning och automatisk omstart.
+   o Kontrollerar och begär tillstånd för flytande fönster.
+   o Rensar resurser (vyer, sändningsmottagare, koroutinuppgifter).
+5. Felhantering:
+   o Hanterar undantag som saknade filer eller tolkningsfel, meddelar användare via statussändningar.
+6. Loggningsstöd:
+   o Ger detaljerade loggar för felsökning och problemlösning.
+
+Nuvarande begränsningar (möjliga förbättringar)
+1. Logik för val av huvudfil:
+   o Tar för närvarande den första filen i katalogen som huvudfil; kan behöva explicit specifikation (t.ex. autoclick.txt).
+2. Ordning för underfilsuppspelning:
+   o Utför i den ordning som anges i huvudfilen, utan prioritet eller loop-alternativ.
+3. Format för pekskärmshändelser:
+   o Stöder endast ett specifikt format (action:pointerId:x:y:time); andra format kan orsaka tolkningsfel.
+4. UI-återkoppling:
+   o Statusuppdateringar begränsas till textvisning, utan framstegsfält eller animering.

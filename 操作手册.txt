@@ -1,0 +1,123 @@
+如何记录：
+1.将手机通过usb连接电脑，打开设置->打开开发者选项->打开usb调试，下载python
+2.电脑打开CMD
+3.E:\>adb devices
+4.E:\>adb shell getevent -lt > E:\touches.txt ，操作开始记录（一定要记录至少一个滑动，否则无法转换文件；单次滑动不超过10s，否则无法正常回放该操作），记录保存到touches.txt
+5.把convert_vertical.py放在E盘
+6.设置convert_vertical.py中的输入和输出文件名，输出文件名为A1.txt（重复记录可取名A2,A3,A4…）
+7.E:\>python convert_vertical.py
+8.把输出文件放到手机的autocontroltouch文件夹下的子文件夹中（新建文件夹）
+9.子文件夹取名
+10.新建A.txt主文件
+11.打开A文件输入以下内容（根据输出的文件名按照顺序输入）并保存：
+files:
+A1.txt
+A2.txt
+A3.txt
+…
+-----------------------
+
+如何回放：
+1.打开应用
+2.打开悬浮窗权限；打开辅助功能权限
+3.点击“选择”按钮并允许读取权限，点击选择回放文件夹
+4.点击“回放”按钮
+-----------------------
+
+建议修改代码：
+把convert_vertical.py中的默认分辨率（默认2400x1080）换成实际分辨率
+-----------------------
+
+autocontrol14 现有功能总结：
+1. 悬浮窗界面功能
+•	显示悬浮窗： 
+o	在屏幕上显示一个可移动的悬浮窗，需要用户授予“显示在其他应用上层”权限。
+o	悬浮窗位置：屏幕左上角（可通过 WindowManager.LayoutParams 调整）。
+•	控制按钮： 
+o	开始按钮 (start_button)：触发回放操作，支持从指定目录或默认 assets 文件开始。
+o	停止按钮 (stop_button)：停止正在进行的回放。
+o	选择目录按钮 (select_button)：启动 FilePickerActivity 让用户选择回放文件目录。
+•	状态显示 (status_text)： 
+o	实时显示回放状态，如： 
+	已选择目录: autocontroltouch
+	执行: autoclick1.txt
+	回放已完成
+	错误: 子文件未找到 等。
+•	文件列表显示 (file_list_text)： 
+o	显示当前选择的目录名称（如 autocontroltouch）。
+•	计时器窗口 (timer_text)： 
+o	在屏幕右上角显示一个独立的计时器窗口，循环显示 1s 到 10s。
+2. 文件回放功能 (TouchRecordService)
+•	支持两种回放来源： 
+o	从 assets 文件回放： 
+	默认文件：touch_recording_3.txt。
+	用户可通过 Intent 指定其他 assets 文件。
+o	从外部存储目录回放： 
+	支持用户选择的目录（如 /storage/emulated/0/autocontroltouch/autoclick_slow/）。
+•	主文件解析： 
+o	读取目录中的第一个文件作为主文件（优先级未明确指定，默认取第一个）。
+o	解析主文件内容，识别 files: 标记后的子文件列表。
+•	子文件回放： 
+o	按顺序读取并执行主文件中列出的子文件（如 autoclick1.txt）。
+o	支持触控事件格式：action:pointerId:x:y:time（如 DOWN:0:100.0:200.0:1.0）。
+•	触控事件执行： 
+o	将解析的触控事件（如 DOWN、MOVE、UP）发送给 MyAccessibilityService 执行自动化点击。
+o	根据事件时间戳计算回放时长，依次延迟执行。
+•	回放控制： 
+o	开始回放：通过 Intent 触发，支持目录 URI 或 assets 文件名。
+o	停止回放：取消当前协程任务并停止触控事件执行。
+3. 状态管理与通信
+•	状态广播： 
+o	使用 LocalBroadcastManager 在 TouchRecordService 和 FloatingWindow 间通信。
+o	广播 action：com.example.autocontrol14.STATUS_UPDATE。
+o	发送状态示例： 
+	执行: $fileName（回放子文件时）
+	回放已完成（回放结束时）
+	错误: $message（发生异常时）
+•	实时状态更新： 
+o	FloatingWindow 接收广播并在主线程更新 statusText，确保 UI 响应。
+4. 服务管理
+•	服务生命周期： 
+o	FloatingWindow 和 TouchRecordService 均为 START_STICKY 服务，崩溃后自动重启。
+•	权限检查： 
+o	检查并请求悬浮窗权限 (Settings.canDrawOverlays)。
+•	资源清理： 
+o	服务销毁时移除悬浮窗视图、取消计时器任务并注销广播接收器。
+5. 日志与调试
+•	详细日志输出： 
+o	记录服务启动、文件解析、广播发送/接收、回放进度等关键步骤。
+o	示例日志： 
+	TouchRecordService: Sending status update: 执行: autoclick1.txt
+	FloatingWindow: Local broadcast received with status: 执行: autoclick1.txt
+________________________________________
+功能列表
+以下是具体功能的清单形式总结：
+1.	悬浮窗显示与控制： 
+o	显示悬浮窗和计时器窗口。
+o	提供“开始”、“停止”、“选择目录”按钮。
+o	显示当前目录和回放状态。
+2.	文件回放： 
+o	从 assets 或外部存储目录读取触控事件文件。
+o	解析主文件并按顺序回放子文件。
+o	执行触控事件（通过无障碍服务）。
+3.	状态通信： 
+o	使用 LocalBroadcastManager 发送和接收状态更新。
+o	实时更新悬浮窗状态文本。
+4.	服务管理： 
+o	支持服务持久运行和自动重启。
+o	检查并请求悬浮窗权限。
+o	清理资源（视图、广播接收器、协程任务）。
+5.	错误处理： 
+o	处理文件不存在、解析错误等异常，并通过状态广播通知用户。
+6.	日志支持： 
+o	输出详细日志，便于调试和问题排查。
+________________________________________
+当前局限性（可能需要改进）
+1.	主文件选择逻辑： 
+o	当前只取目录中第一个文件作为主文件，可能需要明确指定（如 autoclick.txt）。
+2.	子文件回放顺序： 
+o	按主文件列表顺序执行，未提供优先级或循环选项。
+3.	触控事件格式： 
+o	仅支持特定格式（action:pointerId:x:y:time），其他格式可能导致解析失败。
+4.	UI 反馈： 
+o	状态更新仅限于文本显示，无进度条或动画。

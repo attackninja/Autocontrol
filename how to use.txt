@@ -1,0 +1,123 @@
+How to Record:
+1. Connect the phone to the computer via USB, go to Settings -> Enable Developer Options -> Enable USB Debugging, and download Python.
+2. Open CMD on the computer.
+3. E:\>adb devices
+4. E:\>adb shell getevent -lt > E:\touches.txt, start recording operations (must record at least one swipe, otherwise the file cannot be converted; a single swipe should not exceed 10 seconds, otherwise it cannot be played back correctly), save the recording to touches.txt.
+5. Place convert_vertical.py in the E: drive.
+6. Set the input and output file names in convert_vertical.py, with the output file named A1.txt (for repeated recordings, name them A2, A3, A4, etc.).
+7. E:\>python convert_vertical.py
+8. Place the output file in the subfolder under the phone's autocontroltouch folder (create a new folder).
+9. Name the subfolder.
+10. Create a main file A.txt.
+11. Open the A.txt file, input the following content (list the output file names in order), and save:
+    files:
+    A1.txt
+    A2.txt
+    A3.txt
+    …
+----------------------------------------
+
+How to Playback:
+1. Open the app.
+2. Enable floating window permission; enable accessibility permission.
+3. Click the "Select" button and grant read permission, then choose the playback folder.
+4. Click the "Start" button.
+---------------------------------------
+
+Suggestions:
+Replace the default resolution (default 2400x1080) in convert_vertical.py with the actual resolution.
+---------------------------------------
+
+autocontrol14 Current Functionality Summary:
+1. Floating Window Interface Features
+   • Display Floating Window:
+      o Display a movable floating window on the screen, requiring the user to grant "Display over other apps" permission.
+      o Floating window position: Top-left corner of the screen (adjustable via WindowManager.LayoutParams).
+   • Control Buttons:
+      o Start Button (start_button): Triggers playback, supporting specified directories or default assets files.
+      o Stop Button (stop_button): Stops the ongoing playback.
+      o Select Directory Button (select_button): Launches FilePickerActivity to let the user choose a playback file directory.
+   • Status Display (status_text):
+      o Real-time display of playback status, e.g.:
+          Selected directory: autocontroltouch
+          Executing: autoclick1.txt
+          Playback completed
+          Error: Subfile not found, etc.
+   • File List Display (file_list_text):
+      o Displays the name of the currently selected directory (e.g., autocontroltouch).
+   • Timer Window (timer_text):
+      o Displays an independent timer window in the top-right corner, cycling from 1s to 10s.
+2. File Playback Features (TouchRecordService)
+   • Supports Two Playback Sources:
+      o Playback from Assets Files:
+          Default file: touch_recording_3.txt.
+          Users can specify other assets files via Intent.
+      o Playback from External Storage Directory:
+          Supports user-selected directories (e.g., /storage/emulated/0/autocontroltouch/autoclick_slow/).
+   • Main File Parsing:
+      o Reads the first file in the directory as the main file (priority not explicitly specified, defaults to the first one).
+      o Parses the main file content, identifying the subfile list after the "files:" marker.
+   • Subfile Playback:
+      o Reads and executes subfiles listed in the main file in order (e.g., autoclick1.txt).
+      o Supports touch event format: action:pointerId:x:y:time (e.g., DOWN:0:100.0:200.0:1.0).
+   • Touch Event Execution:
+      o Sends parsed touch events (e.g., DOWN, MOVE, UP) to MyAccessibilityService for automated clicks.
+      o Calculates playback duration based on event timestamps and executes with delays.
+   • Playback Control:
+      o Start Playback: Triggered via Intent, supporting directory URI or assets file name.
+      o Stop Playback: Cancels the current coroutine task and stops touch event execution.
+3. Status Management and Communication
+   • Status Broadcasting:
+      o Uses LocalBroadcastManager for communication between TouchRecordService and FloatingWindow.
+      o Broadcast action: com.example.autocontrol14.STATUS_UPDATE.
+      o Example status sent:
+          Executing: $fileName (during subfile playback)
+          Playback completed (when playback ends)
+          Error: $message (when an exception occurs)
+   • Real-time Status Updates:
+      o FloatingWindow receives broadcasts and updates statusText on the main thread, ensuring UI responsiveness.
+4. Service Management
+   • Service Lifecycle:
+      o Both FloatingWindow and TouchRecordService are START_STICKY services, automatically restarting after a crash.
+   • Permission Checks:
+      o Checks and requests floating window permission (Settings.canDrawOverlays).
+   • Resource Cleanup:
+      o Removes floating window views, cancels timer tasks, and unregisters broadcast receivers when the service is destroyed.
+5. Logging and Debugging
+   • Detailed Log Output:
+      o Logs key steps such as service startup, file parsing, broadcast sending/receiving, and playback progress.
+      o Example logs:
+          TouchRecordService: Sending status update: Executing: autoclick1.txt
+          FloatingWindow: Local broadcast received with status: Executing: autoclick1.txt
+
+Functionality List
+Below is a list summarizing specific features:
+1. Floating Window Display and Control:
+   o Displays floating window and timer window.
+   o Provides "Start", "Stop", and "Select Directory" buttons.
+   o Displays current directory and playback status.
+2. File Playback:
+   o Reads touch event files from assets or external storage directories.
+   o Parses the main file and plays back subfiles in order.
+   o Executes touch events (via accessibility service).
+3. Status Communication:
+   o Uses LocalBroadcastManager to send and receive status updates.
+   o Updates floating window status text in real-time.
+4. Service Management:
+   o Supports persistent service operation and automatic restart.
+   o Checks and requests floating window permission.
+   o Cleans up resources (views, broadcast receivers, coroutine tasks).
+5. Error Handling:
+   o Handles exceptions like missing files or parsing errors, notifying users via status broadcasts.
+6. Logging Support:
+   o Outputs detailed logs for debugging and troubleshooting.
+
+Current Limitations (Possible Improvements)
+1. Main File Selection Logic:
+   o Currently takes the first file in the directory as the main file; may need explicit specification (e.g., autoclick.txt).
+2. Subfile Playback Order:
+   o Executes in the order listed in the main file, with no priority or loop options provided.
+3. Touch Event Format:
+   o Only supports a specific format (action:pointerId:x:y:time); other formats may cause parsing failures.
+4. UI Feedback:
+   o Status updates are limited to text display, with no progress bar or animation.

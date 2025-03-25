@@ -1,0 +1,705 @@
+package com.example.autocontrol14
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Bundle
+import androidx.appcompat.app.AppCompatActivity
+
+class FilePickerActivity : AppCompatActivity() {
+    companion object {
+        private const val SELECT_FILE_REQUEST = 1
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+        }
+        startActivityForResult(intent, SELECT_FILE_REQUEST)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == SELECT_FILE_REQUEST && resultCode == Activity.RESULT_OK) {
+            data?.data?.let { uri ->
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+                val fileName = uri.lastPathSegment ?: "Unknown File"
+                val intent = Intent(this, FloatingWindow::class.java).apply {
+                    putExtra("FILE_URI", uri.toString())
+                    putExtra("FILE_NAME", fileName)
+                }
+                startService(intent)
+            }
+        }
+        finish()
+    }
+}
+
+
+
+package com.example.autocontrol14
+
+import android.app.Service
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.IBinder
+import android.provider.OpenableColumns
+import android.provider.Settings
+import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
+import android.view.WindowManager
+import android.widget.Button
+import android.widget.TextView
+
+class FloatingWindow : Service() {
+    private lateinit var windowManager: WindowManager
+    private lateinit var floatingView: View
+    private var currentFileUri: Uri? = null
+    private lateinit var fileListText: TextView
+    private lateinit var statusText: TextView
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            stopSelf()
+            return
+        }
+
+        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_window, null)
+        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            android.graphics.PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            x = 0
+            y = 0
+        }
+        windowManager.addView(floatingView, params)
+
+        fileListText = floatingView.findViewById(R.id.file_list_text)
+        statusText = floatingView.findViewById(R.id.status_text)
+        floatingView.findViewById<Button>(R.id.start_button).setOnClickListener {
+            if (currentFileUri != null) {
+                startPlayback(currentFileUri!!)
+            } else {
+                updateStatus("未选择文件，使用默认文件")
+                startPlaybackFromAssets("touch_recording_3.txt") // 强制使用 touch_recording_3.txt
+            }
+        }
+        floatingView.findViewById<Button>(R.id.stop_button).setOnClickListener { stopPlayback() }
+        floatingView.findViewById<Button>(R.id.select_button).setOnClickListener { selectFile() }
+    }
+
+    private fun selectFile() {
+        val intent = Intent(this, FilePickerActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(intent)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.getStringExtra("FILE_URI")?.let { uriString ->
+            currentFileUri = Uri.parse(uriString)
+            val fileName = getFileNameFromUri(currentFileUri!!)
+            if (fileName != null) {
+                updateStatus("已选择文件: $fileName")
+                fileListText.text = fileName
+            } else {
+                updateStatus("无法获取文件名")
+            }
+        }
+        return START_STICKY
+    }
+
+    private fun startPlayback(uri: Uri) {
+        val fileName = getFileNameFromUri(uri) ?: uri.toString()
+        val intent = Intent(this, TouchRecordService::class.java).apply {
+            putExtra("ACTION", "PLAYBACK")
+            putExtra("FILE_URI", uri.toString())
+            putExtra("FILE_NAME", fileName)
+        }
+        startService(intent)
+        updateStatus("执行: $fileName")
+        Log.d("FloatingWindow", "执行: $fileName")
+    }
+
+    private fun startPlaybackFromAssets(fileName: String) {
+        val intent = Intent(this, TouchRecordService::class.java).apply {
+            putExtra("ACTION", "PLAYBACK")
+            putExtra("FILE_NAME", fileName)
+            putExtra("FROM_ASSETS", true)
+        }
+        startService(intent)
+        updateStatus("执行: $fileName (from assets)")
+        Log.d("FloatingWindow", "执行: $fileName (from assets)")
+    }
+
+    private fun stopPlayback() {
+        val intent = Intent(this, TouchRecordService::class.java).apply {
+            putExtra("ACTION", "STOP")
+        }
+        startService(intent)
+        updateStatus("回放已停止")
+        Log.d("FloatingWindow", "回放已停止")
+    }
+
+    private fun getFileNameFromUri(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst() && nameIndex != -1) {
+                    cursor.getString(nameIndex)
+                } else {
+                    null
+                }
+            }
+        } catch (e: SecurityException) {
+            Log.e("FloatingWindow", "Permission denied when accessing URI: $uri", e)
+            updateStatus("无法访问文件，请重新选择")
+            null
+        } catch (e: Exception) {
+            Log.e("FloatingWindow", "Error accessing URI: $uri", e)
+            null
+        }
+    }
+
+    private fun updateStatus(message: String) {
+        statusText.text = message
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (::floatingView.isInitialized) {
+            windowManager.removeView(floatingView)
+        }
+    }
+}
+
+
+
+
+package com.example.autocontrol14
+
+import android.content.Intent
+import android.os.Bundle
+import android.provider.Settings
+import androidx.appcompat.app.AppCompatActivity
+
+class MainActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        if (!Settings.canDrawOverlays(this)) {
+            val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                data = android.net.Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
+        } else {
+            startService(Intent(this, FloatingWindow::class.java))
+            finish()
+        }
+    }
+}
+
+
+
+package com.example.autocontrol14
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Path
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+class MyAccessibilityService : AccessibilityService() {
+
+    private lateinit var replayReceiver: BroadcastReceiver
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        Log.d("MyAccessibilityService", "Accessibility event: ${event?.eventType}")
+    }
+
+    override fun onInterrupt() {
+        Log.d("MyAccessibilityService", "Service interrupted")
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Log.d("MyAccessibilityService", "Service connected")
+
+        replayReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val events = intent?.getParcelableArrayListExtra<TouchEvent>("EVENTS")
+                if (events != null) {
+                    Log.d("MyAccessibilityService", "Received broadcast with ${events.size} events")
+                    performExactGesturePlayback(events)
+                } else {
+                    Log.w("MyAccessibilityService", "No events received in broadcast")
+                }
+            }
+        }
+        registerReceiver(replayReceiver, IntentFilter("com.example.autocontrol14.REPLAY_GESTURE"), RECEIVER_NOT_EXPORTED)
+        Log.d("MyAccessibilityService", "Broadcast receiver registered")
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        intent?.let {
+            val events = it.getParcelableArrayListExtra<TouchEvent>("EVENTS")
+            if (events != null) {
+                Log.d("MyAccessibilityService", "Received service intent with ${events.size} events")
+                performExactGesturePlayback(events)
+            } else {
+                Log.w("MyAccessibilityService", "No events received in service intent")
+            }
+        }
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(replayReceiver)
+        Log.d("MyAccessibilityService", "Service destroyed")
+    }
+
+    // performExactGesturePlayback 保持不变
+    private fun performExactGesturePlayback(events: List<TouchEvent>) {
+        if (events.isEmpty()) {
+            Log.w("MyAccessibilityService", "No events to playback")
+            return
+        }
+        CoroutineScope(Dispatchers.Main).launch {
+            Log.d("MyAccessibilityService", "Starting gesture playback")
+            val gesturesById = mutableMapOf<Int, MutableList<MutableList<TouchEvent>>>()
+
+            val displayMetrics = resources.displayMetrics
+            val screenWidth = displayMetrics.widthPixels.toFloat()
+            val screenHeight = displayMetrics.heightPixels.toFloat()
+            Log.d("MyAccessibilityService", "Screen size: ${screenWidth}x${screenHeight}")
+
+            events.forEach { event ->
+                val gestureLists = gesturesById.getOrPut(event.pointerId) { mutableListOf() }
+                val currentGesture = gestureLists.lastOrNull { it.isNotEmpty() && it.last().action != "UP" }
+                when (event.action) {
+                    "DOWN" -> gestureLists.add(mutableListOf(event))
+                    "MOVE", "UP" -> currentGesture?.add(event)
+                }
+            }
+
+            val baseTime = events.first().time
+
+            gesturesById.forEach { (pointerId, gestureLists) ->
+                gestureLists.forEachIndexed { index, gesture ->
+                    if (gesture.isEmpty() || gesture.first().action != "DOWN") {
+                        Log.w("MyAccessibilityService", "Invalid gesture $index for id=$pointerId")
+                        return@forEachIndexed
+                    }
+
+                    val startEvent = gesture.first()
+                    val endEvent = gesture.last()
+                    val path = Path()
+                    val clampedStartX = startEvent.x.coerceIn(0f, screenWidth)
+                    val clampedStartY = startEvent.y.coerceIn(0f, screenHeight)
+                    path.moveTo(clampedStartX, clampedStartY)
+
+                    gesture.filter { it.action == "MOVE" }.forEach { moveEvent ->
+                        val clampedX = moveEvent.x.coerceIn(0f, screenWidth)
+                        val clampedY = moveEvent.y.coerceIn(0f, screenHeight)
+                        path.lineTo(clampedX, clampedY)
+                    }
+                    val clampedEndX = endEvent.x.coerceIn(0f, screenWidth)
+                    val clampedEndY = endEvent.y.coerceIn(0f, screenHeight)
+                    path.lineTo(clampedEndX, clampedEndY)
+
+                    val duration = ((endEvent.time - startEvent.time) * 1000).toLong()
+                    Log.d("MyAccessibilityService", "Gesture $index for id=$pointerId: from ($clampedStartX, $clampedStartY) to ($clampedEndX, $clampedEndY), duration=$duration ms")
+
+                    val strokes = mutableListOf<GestureDescription.StrokeDescription>()
+                    if (duration > 10000) {
+                        val segmentDuration = 10000L
+                        var currentTime = 0L
+                        var segmentPath = Path()
+                        segmentPath.moveTo(clampedStartX, clampedStartY)
+
+                        gesture.forEach { event ->
+                            val eventTime = ((event.time - startEvent.time) * 1000).toLong()
+                            val clampedX = event.x.coerceIn(0f, screenWidth)
+                            val clampedY = event.y.coerceIn(0f, screenHeight)
+
+                            if (eventTime > currentTime + segmentDuration) {
+                                strokes.add(GestureDescription.StrokeDescription(segmentPath, 0, segmentDuration))
+                                currentTime += segmentDuration
+                                segmentPath = Path()
+                                segmentPath.moveTo(clampedX, clampedY)
+                            }
+                            segmentPath.lineTo(clampedX, clampedY)
+                        }
+                        val remainingDuration = duration - currentTime
+                        if (remainingDuration > 0) {
+                            strokes.add(GestureDescription.StrokeDescription(segmentPath, 0, remainingDuration))
+                        }
+                    } else {
+                        strokes.add(GestureDescription.StrokeDescription(path, 0, duration))
+                    }
+
+                    val startDelay = ((startEvent.time - baseTime) * 1000).toLong()
+                    if (startDelay > 0) {
+                        Log.d("MyAccessibilityService", "Delaying $startDelay ms before gesture $index for id=$pointerId")
+                        delay(startDelay)
+                    }
+
+                    val builder = GestureDescription.Builder()
+                    strokes.forEach { builder.addStroke(it) }
+                    val gestureDesc = builder.build()
+
+                    Log.d("MyAccessibilityService", "Dispatching gesture $index for id=$pointerId")
+                    dispatchGesture(gestureDesc, object : GestureResultCallback() {
+                        override fun onCompleted(gestureDescription: GestureDescription?) {
+                            Log.d("MyAccessibilityService", "Gesture $index for id=$pointerId completed")
+                        }
+                        override fun onCancelled(gestureDescription: GestureDescription?) {
+                            Log.w("MyAccessibilityService", "Gesture $index for id=$pointerId cancelled")
+                        }
+                    }, null)
+                }
+            }
+            Log.d("MyAccessibilityService", "Gesture playback finished")
+        }
+    }
+}
+
+
+
+package com.example.autocontrol14
+
+import android.os.Parcel
+import android.os.Parcelable
+
+data class TouchEvent(
+    val action: String,
+    val pointerId: Int,
+    val x: Float,
+    val y: Float,
+    val time: Double,  // 时间戳（单位：秒）
+    val size: Float = 0.04f  // 固定触摸点大小为 0.04
+) : Parcelable {
+    constructor(parcel: Parcel) : this(
+        parcel.readString() ?: "",
+        parcel.readInt(),
+        parcel.readFloat(),
+        parcel.readFloat(),
+        parcel.readDouble(),
+        parcel.readFloat()
+    )
+
+    override fun writeToParcel(parcel: Parcel, flags: Int) {
+        parcel.writeString(action)
+        parcel.writeInt(pointerId)
+        parcel.writeFloat(x)
+        parcel.writeFloat(y)
+        parcel.writeDouble(time)
+        parcel.writeFloat(size)
+    }
+
+    override fun describeContents(): Int = 0  // 实现抽象方法，通常返回 0
+
+    companion object CREATOR : Parcelable.Creator<TouchEvent> {
+        override fun createFromParcel(parcel: Parcel): TouchEvent = TouchEvent(parcel)
+        override fun newArray(size: Int): Array<TouchEvent?> = arrayOfNulls(size)
+    }
+}
+
+
+
+package com.example.autocontrol14
+
+import android.app.Service
+import android.content.Intent
+import android.net.Uri
+import android.os.IBinder
+import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+class TouchRecordService : Service() {
+    private var playbackJob: Job? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.getStringExtra("ACTION")
+        when (action) {
+            "PLAYBACK" -> {
+                val uriString = intent.getStringExtra("FILE_URI")
+                val fileName = intent.getStringExtra("FILE_NAME") ?: "touch_recording_4.txt"
+                val fromAssets = intent.getBooleanExtra("FROM_ASSETS", false)
+                if (fromAssets) {
+                    startPlaybackFromAssets(fileName)
+                } else if (uriString != null) {
+                    startPlaybackFromUri(Uri.parse(uriString), fileName)
+                }
+            }
+            "STOP" -> stopPlayback()
+        }
+        return START_STICKY
+    }
+
+    private fun startPlaybackFromAssets(fileName: String) {
+        playbackJob?.cancel()
+        playbackJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val inputStream = assets.open(fileName)
+                playEvents(inputStream, fileName)
+            } catch (e: Exception) {
+                Log.e("TouchRecordService", "Assets playback error: ${e.message}", e)
+            }
+        }
+    }
+
+    private fun startPlaybackFromUri(uri: Uri, fileName: String) {
+        playbackJob?.cancel()
+        playbackJob = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val inputStream = contentResolver.openInputStream(uri)
+                playEvents(inputStream, fileName)
+            } catch (e: Exception) {
+                Log.e("TouchRecordService", "Uri playback error: ${e.message}", e)
+            }
+        }
+    }
+
+    private suspend fun playEvents(inputStream: java.io.InputStream?, fileName: String) {
+        inputStream ?: run {
+            Log.e("TouchRecordService", "Input stream is null for $fileName")
+            return
+        }
+        val reader = BufferedReader(InputStreamReader(inputStream))
+        val events = mutableListOf<TouchEvent>()
+        var lineCount = 0
+
+        reader.useLines { lines ->
+            lines.forEach { line ->
+                lineCount++
+                val parts = line.split(":")
+                when (parts.size) {
+                    5 -> { // DOWN 事件
+                        try {
+                            val action = parts[0]
+                            val pointerId = parts[1].toInt()
+                            val x = parts[2].toFloat()
+                            val y = parts[3].toFloat()
+                            val time = parts[4].toDouble()
+                            if (action == "DOWN") {
+                                events.add(TouchEvent(action, pointerId, x, y, time))
+                            }
+                        } catch (e: Exception) {
+                            Log.e("TouchRecordService", "Error parsing DOWN line $lineCount: $line, ${e.message}")
+                        }
+                    }
+                    6 -> { // MOVE 或 UP 事件
+                        try {
+                            val action = parts[0]
+                            val pointerId = parts[1].toInt()
+                            val x = parts[2].toFloat()
+                            val y = parts[3].toFloat()
+                            val time = parts[5].toDouble()  // 使用时间戳，忽略 duration
+                            if (action == "MOVE" || action == "UP") {
+                                events.add(TouchEvent(action, pointerId, x, y, time))
+                            }
+                        } catch (e: Exception) {
+                            Log.e("TouchRecordService", "Error parsing MOVE/UP line $lineCount: $line, ${e.message}")
+                        }
+                    }
+                    else -> Log.w("TouchRecordService", "Skipping line $lineCount with ${parts.size} parts: $line")
+                }
+            }
+        }
+        Log.d("TouchRecordService", "Loaded ${events.size} touch events from $fileName, total lines: $lineCount")
+
+        if (events.isEmpty()) {
+            Log.e("TouchRecordService", "No valid events loaded from $fileName")
+            return
+        }
+
+        dispatchGesture(events)
+    }
+
+    private fun dispatchGesture(events: List<TouchEvent>) {
+        val intent = Intent(this, MyAccessibilityService::class.java)
+        intent.putParcelableArrayListExtra("EVENTS", ArrayList(events))
+        startService(intent)
+        Log.d("TouchRecordService", "Service intent sent with ${events.size} events")
+    }
+
+    private fun stopPlayback() {
+        playbackJob?.cancel()
+        Log.d("TouchRecordService", "Playback stopped")
+        val intent = Intent(this, MyAccessibilityService::class.java).apply {
+            putExtra("ACTION", "STOP")
+        }
+        startService(intent)
+    }
+
+    override fun onDestroy() {
+        playbackJob?.cancel()
+        super.onDestroy()
+    }
+}
+
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.autocontrol14">
+
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".FilePickerActivity"
+            android:theme="@style/TransparentAppCompatTheme"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".FloatingWindow"
+            android:exported="false" />
+
+        <service
+            android:name=".TouchRecordService"
+            android:exported="true" />
+
+        <service
+            android:name=".MyAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:label="AutoControl14"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+    </application>
+</manifest>
+
+
+
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.kotlin.compose)  // 添加这一行
+}
+
+android {
+    compileSdk = 34  // 保持 Android 14
+    namespace = "com.example.autocontrol14"
+
+    defaultConfig {
+        applicationId = "com.example.autocontrol14"
+        minSdk = 34
+        targetSdk = 34
+        versionCode = 1
+        versionName = "1.0"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+    buildFeatures {
+        compose = true
+    }
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/kotlin")
+        }
+    }
+
+    dependencies {
+        implementation(libs.androidx.core.ktx)
+        implementation(libs.androidx.lifecycle.runtime.ktx)
+        implementation(libs.androidx.activity.compose)
+        implementation(platform(libs.androidx.compose.bom))
+        implementation(libs.androidx.ui)
+        implementation(libs.androidx.ui.graphics)
+        implementation(libs.androidx.ui.tooling.preview)
+        implementation(libs.androidx.material3)
+        testImplementation(libs.junit)
+        androidTestImplementation(libs.androidx.junit)
+        androidTestImplementation(libs.androidx.espresso.core)
+        androidTestImplementation(platform(libs.androidx.compose.bom))
+        androidTestImplementation(libs.androidx.ui.test.junit4)
+        debugImplementation(libs.androidx.ui.tooling)
+        debugImplementation(libs.androidx.ui.test.manifest)
+        implementation("androidx.activity:activity:1.8.0")
+        implementation("androidx.core:core-ktx:1.12.0")
+        implementation("androidx.appcompat:appcompat:1.6.1")
+        implementation("com.google.android.material:material:1.9.0")
+        implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.10")
+    }
+}

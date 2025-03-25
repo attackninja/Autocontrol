@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Autocontrol14</string>
+    <string name="accessibility_service_description">用于回放触摸事件的辅助服务</string>
+
+</resources>

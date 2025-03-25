@@ -1,0 +1,16 @@
+<!-- /*
+ * autocontrol14 - Version 4.0
+ * Copyright © 2025 Z.chao Zhang
+ * Licensed under Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
+ * Free for non-commercial use only. Credit TouchWizard. See https://creativecommons.org/licenses/by-nc/4.0/.
+ * Provided "as is," use at your own risk.
+ */ -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="AutoControl14"
+        android:layout_centerInParent="true"/>
+</RelativeLayout>

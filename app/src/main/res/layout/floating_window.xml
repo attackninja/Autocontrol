@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#80000000"
+    android:padding="4dp">
+
+    <TextView
+        android:id="@+id/file_list_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="未选择文件"
+        android:textSize="12sp"
+        android:textColor="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/status_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="状态"
+        android:textSize="12sp"
+        android:textColor="#FFFFFF" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/start_button"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:text="Start"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/stop_button"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:text="Stop"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/select_button"
+            android:layout_width="60dp"
+            android:layout_height="48dp"
+            android:text="Select"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,22 @@
+<!-- /*
+ * autocontrol14 - Version 4.0
+ * Copyright © 2025 Z.chao Zhang
+ * Licensed under Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).
+ * Free for non-commercial use only. Credit TouchWizard. See https://creativecommons.org/licenses/by-nc/4.0/.
+ * Provided "as is," use at your own risk.
+ */ -->
+<resources>
+    <!-- 默认应用主题 -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- 可选：自定义属性 -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <!-- 透明主题，用于 FilePickerActivity -->
+    <style name="TransparentAppCompatTheme" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
+</resources>
