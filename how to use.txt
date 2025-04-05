@@ -1,4 +1,4 @@
-How to Record: (All steps are made in disk E, can be changed by your needs)
+How to Record: (All steps are made in E drive, can be changed by your needs)
 1. Connect the phone to the computer via USB, go to Settings -> Enable Developer Options -> Enable USB Debugging, download & install Python and ADB.
 2. Open CMD on the computer.
 3. Run adb devices
