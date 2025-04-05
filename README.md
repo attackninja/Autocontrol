@@ -15,7 +15,7 @@ Use:
 Included but not limited to automated clicking, script execution, and Android device task automation.
 
 Requirements:
-Android 14+(Veriefied)
+Android 14+(Verified)
 -------------------------------------------------
 
 描述：
@@ -48,3 +48,4 @@ Inkluderar, men är inte begränsat till, automatiska klick, skriptkörning och 
 
 Krav:
 Android 14+(Verifierad)
+-------------------------------------------------
