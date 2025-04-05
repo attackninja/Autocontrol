@@ -1,10 +1,10 @@
-Hur man spelar in:
-1. Anslut telefonen till datorn via USB, gå till Inställningar -> Aktivera Utvecklaralternativ -> Aktivera USB-felsökning och ladda ner Python.
+Hur man spelar in: (Allt steg är gjort i disk E, kan bli bytt med vad som krävs)
+1. Anslut telefonen till datorn via USB, gå till Inställningar -> Aktivera Utvecklaralternativ -> Aktivera USB-felsökning, ladda ner & installera Python och ADB.
 2. Öppna CMD på datorn.
-3. E:\>adb devices
-4. E:\>adb shell getevent -lt > E:\touches.txt, starta inspelning av operationer (måste spela in minst en svepning, annars kan filen inte konverteras; en enskild svepning får inte överstiga 10 sekunder, annars kan operationen inte spelas upp korrekt), spara inspelningen till touches.txt.
-5. Placera convert_vertical.py på E:-enheten.
-6. Ställ in in- och utdatafilnamn i convert_vertical.py, med utdatafilen namngiven A1.txt (för upprepade inspelningar, namnge dem A2, A3, A4, osv.).
+3. Kör med adb devices
+4. Kör med adb shell getevent -lt > E:\Ax.txt, starta inspelning av operationer (måste spela in minst en svepning, annars kan filen inte konverteras; en enskild svepning får inte överstiga 10 sekunder, annars kan operationen inte spelas upp korrekt), inspelningen är automatisk sparad till Ax.txt.
+5. Placera convert_vertical.py på E:disk.
+6. Ställ in/utdatafilnamn i convert_vertical.py, med utdatafilen namngiven A1.txt (för upprepade inspelningar, namnge dem A2, A3, A4, osv.).
 7. E:\>python convert_vertical.py
 8. Placera utdatafilen i underkatalogen under telefonens autocontroltouch-mapp (skapa en ny mapp).
 9. Namnge underkatalogen.
