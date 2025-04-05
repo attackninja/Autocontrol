@@ -2,7 +2,7 @@ How to Record: (All steps are made in E drive, can be changed by your needs)
 1. Connect the phone to the computer via USB, go to Settings -> Enable Developer Options -> Enable USB Debugging, download & install Python and ADB.
 2. Open CMD on the computer.
 3. Run adb devices
-4. Run adb shell getevent -lt > E:\touches.txt, start recording operations (must record at least one swipe, otherwise the file cannot be converted; a single swipe should not exceed 10 seconds, otherwise it cannot be played back correctly), ctrl+c when finished, the recording will automatically saved as Ax.txt.
+4. Run adb shell getevent -lt > E:\Ax.txt, start recording operations (must record at least one swipe, otherwise the file cannot be converted; a single swipe should not exceed 10 seconds, otherwise it cannot be played back correctly), ctrl+c when finished, the recording will automatically saved as Ax.txt.
 5. Place convert_vertical.py in the E: drive.
 6. Set the input and output file names in convert_vertical.py, with the output file named A1.txt (for multiple repeated recordings, name them A2, A3, A4, etc.).
 7. Run python convert_vertical.py
