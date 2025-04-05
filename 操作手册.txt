@@ -2,7 +2,7 @@
 1.将手机通过usb连接电脑，打开设置->打开开发者选项->打开usb调试，下载并安装Python和ADB
 2.电脑打开CMD
 3.执行 adb devices
-4.执行 adb shell getevent -lt > E:\Ax.txt ，操作开始记录（一定要记录至少一个滑动，否则无法转换文件；单次滑动不超过10s，否则无法正常回放该操作），记录自动保存到Ax.txt
+4.执行 adb shell getevent -lt > E:\Ax.txt ，操作开始记录（一定要记录至少一个滑动，否则无法转换文件；单次滑动不超过10s，否则无法正常回放该操作），结束时输入ctrl+c ，记录自动保存到Ax.txt
 5.把convert_vertical.py放在E盘
 6.设置convert_vertical.py中的输入和输出文件名，输出文件名为A1.txt（重复记录可取名A2,A3,A4…）
 7.E:\>python convert_vertical.py
