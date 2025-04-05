@@ -1,12 +1,12 @@
 import re
 
-input_file = "E:\\yunye11x.txt"
-output_file = "E:\\yunye11.txt"
-screen_width = 2400
-screen_height = 1080
-raw_max = 4096  # 调整为 4096，可能更准确
-x_scale, y_scale = 1.0, 1.0  # 可调比例
-x_offset, y_offset = 0.0, 0.0  # 可调偏移
+input_file = "E:\\Ax.txt" #change file name to recorded file name and saving path/更改为记录的文件名和保存路径位置
+output_file = "E:\\A1.txt" #change file name for your needs and saving path/更改为回放文件名和保存路径位置
+screen_width = 2400  #2400 as default, recommends a change to your device/默认2400，视设备情况调整
+screen_height = 1080  #1080 as default, recommends a change to your device/默认1080，视设备情况调整
+raw_max = 4096  #4096 as default, recommends a change to your device/视设备情况调整
+x_scale, y_scale = 1.0, 1.0  #scale settings/比例设置
+x_offset, y_offset = 0.0, 0.0  #offset settings/偏移设置
 
 with open(input_file, "r") as infile, open(output_file, "w") as outfile:
     pointers = {}
